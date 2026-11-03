@@ -3,8 +3,12 @@ if(params.get('auto'))location.replace(base+'/auto/'+encodeURIComponent(params.g
 const brandSelect = byId('car-brand'), modelSelect = byId('car-model'), yearSelect = byId('car-year');
 const versionsBox = byId('car-versions'), goButton = byId('car-go');
 let desiredKit = 'Kabina', chosen = null;
-function choose(vehicle) {chosen = vehicle;goButton.disabled = !vehicle;}
-goButton.onclick=()=>{if(chosen)selectVehicle(chosen,desiredKit);};
+function choose(vehicle) {chosen = vehicle;goButton.disabled = !vehicle && !brandSelect.value;}
+goButton.onclick=()=>{
+  if(chosen){selectVehicle(chosen,desiredKit);return;}
+  setCar(brandSelect.value,modelSelect.value);
+  byId('sklep').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});
+};
 byId('other').onclick=() => openRequest([brandSelect.value,modelSelect.value,yearSelect.value].filter(Boolean).join(' '),'Dobór indywidualny');
 byId('partner').onclick=() => openRequest('','Współpraca partnerska');
 const thisYear = new Date().getFullYear();
@@ -18,18 +22,18 @@ function fillSelect(select, placeholder, values) {
 }
 const modelVersions = () => vehicles.filter(v=>v.brand===brandSelect.value && v.model===modelSelect.value);
 fillSelect(brandSelect,'Marka',[...new Set(vehicles.map(v=>v.brand))].sort((a,b)=>a.localeCompare(b,'pl')));
-brandSelect.onchange=()=>{
+function fillModels() {
   fillSelect(modelSelect,'Model',[...new Set(vehicles.filter(v=>v.brand===brandSelect.value).map(v=>v.model))].sort((a,b)=>a.localeCompare(b,'pl',{numeric:true})));
   fillSelect(yearSelect,'Rok',[]);versionsBox.hidden=true;choose(null);
-  if(brandSelect.value)modelSelect.focus();
-};
-modelSelect.onchange=()=>{
+}
+function fillYears() {
   const years = new Set();
   for (const v of modelVersions()) {const [from,to]=yearRange(v);for(let y=to;y>=from;y--)years.add(y);}
   fillSelect(yearSelect,'Rok',[...years].sort((a,b)=>b-a).map(String));
   versionsBox.hidden=true;choose(null);
-  if(modelSelect.value)yearSelect.focus();
-};
+}
+brandSelect.onchange=()=>{fillModels();if(brandSelect.value)modelSelect.focus();};
+modelSelect.onchange=()=>{fillYears();if(modelSelect.value)yearSelect.focus();};
 yearSelect.onchange=()=>{
   const year = +yearSelect.value;
   const found = modelVersions().filter(v=>{const [from,to]=yearRange(v);return year>=from&&year<=to;});
@@ -54,9 +58,18 @@ document.querySelectorAll('a[href="#dobierz"]').forEach(a=>a.onclick=()=>{desire
 function selectVehicle(vehicle,kit) {
   location.href=cardUrl(vehicle,Object.hasOwn(vehicle.kits,kit)?kit:baseKit(vehicle));
 }
-let filter='all',limit=6;
+let filter='all',limit=6,car={brand:'',model:''};
+function setCar(brand,model) {
+  car={brand,model:brand?model:''};filter='all';limit=6;
+  const url=new URL(location.href);url.searchParams.delete('marka');url.searchParams.delete('model');
+  if(car.brand)url.searchParams.set('marka',car.brand);if(car.model)url.searchParams.set('model',car.model);
+  if(car.brand)url.hash='sklep';
+  history.replaceState(null,'',url);renderStore();
+}
 function renderStore() {
-  const list=vehicles.filter(v=>filter==='all'||v.status===filter);
+  const list=vehicles.filter(v=>(filter==='all'||v.status===filter)&&(!car.brand||v.brand===car.brand)&&(!car.model||v.model===car.model));
+  if(car.brand)list.sort((a,b)=>a.model.localeCompare(b.model,'pl',{numeric:true})||yearRange(b)[0]-yearRange(a)[0]);
+  byId('store-car').hidden=!car.brand;byId('store-car-label').textContent=[car.brand,car.model].filter(Boolean).join(' ');
   const grid=byId('store-grid');grid.replaceChildren();
   list.slice(0,limit).forEach((v,i)=>{
     const link=document.createElement('a');link.className='store-item';link.dataset.status=v.status;const kit=baseKit(v);link.href=cardUrl(v,kit);
@@ -72,8 +85,8 @@ function renderStore() {
     const foot=document.createElement('div');const price=document.createElement('strong');price.textContent=kit+' · '+money(v.kits[kit]);
     foot.append(price,v.status==='out'?'Powiadom ↗':'↗');body.append(title,info,foot);link.append(art,body);grid.append(link);
   });
-  byId('store-status').textContent=list.length?'Wyświetlono '+Math.min(limit,list.length)+' z '+list.length+' wersji.':'Wszystkie zestawy w tej grupie są dostępne na zamówienie.';
-  byId('more-cars').hidden=list.length<=limit;byId('back-to-orders').hidden=!!list.length;
+  byId('store-status').textContent=list.length?'Wyświetlono '+Math.min(limit,list.length)+' z '+list.length+' wersji.':car.brand?'Brak zestawów dla tego auta w tej grupie.':'Wszystkie zestawy w tej grupie są dostępne na zamówienie.';
+  byId('more-cars').hidden=list.length<=limit;byId('back-to-orders').hidden=!!list.length||!!car.brand;
   document.querySelectorAll('[data-filter]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.filter===filter)));
 }
 function setFilter(value){filter=value;limit=6;renderStore();}
@@ -81,4 +94,12 @@ document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>setFilter(b.
 byId('back-to-orders').onclick=()=>setFilter('order');
 byId('more-cars').onclick=()=>{const previous=limit;limit+=6;renderStore();byId('store-grid').children[previous]?.focus({preventScroll:true});};
 document.querySelector('[data-filter="stock"]').hidden=!vehicles.some(v=>v.status==='stock');
+byId('store-car-clear').onclick=()=>{setCar('','');brandSelect.value='';fillModels();};
+const linkedBrand=params.get('marka'),linkedModel=params.get('model');
+if(linkedBrand&&vehicles.some(v=>v.brand===linkedBrand)){
+  brandSelect.value=linkedBrand;fillModels();
+  if(linkedModel&&vehicles.some(v=>v.brand===linkedBrand&&v.model===linkedModel)){modelSelect.value=linkedModel;fillYears();}
+  car={brand:linkedBrand,model:modelSelect.value};
+}
 renderStore();
+if(car.brand&&location.hash==='#sklep')byId('sklep').scrollIntoView();
