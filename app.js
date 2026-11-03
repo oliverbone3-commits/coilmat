@@ -20,10 +20,12 @@ function fillSelect(select, placeholder, values) {
   select.replaceChildren(new Option(placeholder,''), ...values.map(value=>new Option(value,value)));
   select.disabled = !values.length;
 }
+const brands=()=>[...new Set(vehicles.map(v=>v.brand))].sort((a,b)=>a.localeCompare(b,'pl'));
+const modelsOf=brand=>[...new Set(vehicles.filter(v=>v.brand===brand).map(v=>v.model))].sort((a,b)=>a.localeCompare(b,'pl',{numeric:true}));
 const modelVersions = () => vehicles.filter(v=>v.brand===brandSelect.value && v.model===modelSelect.value);
-fillSelect(brandSelect,'Marka',[...new Set(vehicles.map(v=>v.brand))].sort((a,b)=>a.localeCompare(b,'pl')));
+
 function fillModels() {
-  fillSelect(modelSelect,'Model',[...new Set(vehicles.filter(v=>v.brand===brandSelect.value).map(v=>v.model))].sort((a,b)=>a.localeCompare(b,'pl',{numeric:true})));
+  fillSelect(modelSelect,'Model',modelsOf(brandSelect.value));
   fillSelect(yearSelect,'Rok',[]);versionsBox.hidden=true;choose(null);
 }
 function fillYears() {
@@ -32,6 +34,7 @@ function fillYears() {
   fillSelect(yearSelect,'Rok',[...years].sort((a,b)=>b-a).map(String));
   versionsBox.hidden=true;choose(null);
 }
+fillSelect(brandSelect,'Marka',brands());
 brandSelect.onchange=()=>{fillModels();if(brandSelect.value)modelSelect.focus();};
 modelSelect.onchange=()=>{fillYears();if(modelSelect.value)yearSelect.focus();};
 yearSelect.onchange=()=>{
@@ -59,17 +62,26 @@ function selectVehicle(vehicle,kit) {
   location.href=cardUrl(vehicle,Object.hasOwn(vehicle.kits,kit)?kit:baseKit(vehicle));
 }
 let filter='all',limit=6,car={brand:'',model:''};
+const storeBrand=byId('store-brand'),storeModel=byId('store-model');
+storeBrand.append(...brands().map(b=>new Option(b,b)));
 function setCar(brand,model) {
-  car={brand,model:brand?model:''};filter='all';limit=6;
+  car={brand,model:brand?model:''};limit=6;
+  storeBrand.value=car.brand;
+  storeModel.replaceChildren(new Option('Wszystkie modele',''),...modelsOf(car.brand).map(m=>new Option(m,m)));
+  storeModel.disabled=!car.brand;storeModel.value=car.model;
+  if(brandSelect.value!==car.brand){brandSelect.value=car.brand;fillModels();}
+  if(car.brand&&modelSelect.value!==car.model){modelSelect.value=car.model;fillYears();}
   const url=new URL(location.href);url.searchParams.delete('marka');url.searchParams.delete('model');
   if(car.brand)url.searchParams.set('marka',car.brand);if(car.model)url.searchParams.set('model',car.model);
   if(car.brand)url.hash='sklep';
   history.replaceState(null,'',url);renderStore();
 }
+storeBrand.onchange=()=>setCar(storeBrand.value,'');
+storeModel.onchange=()=>setCar(car.brand,storeModel.value);
 function renderStore() {
   const list=vehicles.filter(v=>(filter==='all'||v.status===filter)&&(!car.brand||v.brand===car.brand)&&(!car.model||v.model===car.model));
   if(car.brand)list.sort((a,b)=>a.model.localeCompare(b.model,'pl',{numeric:true})||yearRange(b)[0]-yearRange(a)[0]);
-  byId('store-car').hidden=!car.brand;byId('store-car-label').textContent=[car.brand,car.model].filter(Boolean).join(' ');
+  byId('store-reset').hidden=!car.brand&&filter==='all';
   const grid=byId('store-grid');grid.replaceChildren();
   list.slice(0,limit).forEach((v,i)=>{
     const link=document.createElement('a');link.className='store-item';link.dataset.status=v.status;const kit=baseKit(v);link.href=cardUrl(v,kit);
@@ -94,12 +106,8 @@ document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>setFilter(b.
 byId('back-to-orders').onclick=()=>setFilter('order');
 byId('more-cars').onclick=()=>{const previous=limit;limit+=6;renderStore();byId('store-grid').children[previous]?.focus({preventScroll:true});};
 document.querySelector('[data-filter="stock"]').hidden=!vehicles.some(v=>v.status==='stock');
-byId('store-car-clear').onclick=()=>{setCar('','');brandSelect.value='';fillModels();};
+byId('store-reset').onclick=()=>{filter='all';setCar('','');};
 const linkedBrand=params.get('marka'),linkedModel=params.get('model');
-if(linkedBrand&&vehicles.some(v=>v.brand===linkedBrand)){
-  brandSelect.value=linkedBrand;fillModels();
-  if(linkedModel&&vehicles.some(v=>v.brand===linkedBrand&&v.model===linkedModel)){modelSelect.value=linkedModel;fillYears();}
-  car={brand:linkedBrand,model:modelSelect.value};
-}
-renderStore();
-if(car.brand&&location.hash==='#sklep')byId('sklep').scrollIntoView();
+const knownBrand=vehicles.some(v=>v.brand===linkedBrand)?linkedBrand:'';
+setCar(knownBrand,modelsOf(knownBrand).includes(linkedModel)?linkedModel:'');
+if(car.brand&&location.hash==='#sklep'){history.scrollRestoration='manual';const toStore=()=>byId('sklep').scrollIntoView({behavior:'instant'});toStore();addEventListener('load',toStore);}
