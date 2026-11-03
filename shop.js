@@ -12,7 +12,6 @@ const colors = [
 const statusLabels = {order:'Na zamówienie',stock:'Od ręki',out:'Niedostępne'};
 const photo = file => base+'/products/'+file+'.jpg';
 const baseKit = v => Object.keys(v.kits)[0];
-const roman = {'I':'1','II':'2','III':'3','IV':'4','V':'5','VI':'6','VII':'7','VIII':'8'};
 function normal(text) {
   return text.toLowerCase().replaceAll('ł','l').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
 }
@@ -26,9 +25,7 @@ for (const [brand,models] of Object.entries(DATA)) {
       if (trunk) {kits['Bagażnik']=449;kits['Kabina + bagażnik']=cabin+449;}
       if (premium) kits['Premium 6D']=premium;
       const code = normal(name+' '+detail).replaceAll(' ','-');
-      const alias = [brand==='Volkswagen'?'VW':'',roman[generation]||'',model.replace(/^Seria /,'')].join(' ');
-      const terms = normal(name+' '+generation+' '+alias).split(' ');
-      vehicles.push({brand,model,generation,years,name,detail,code,kits,air:air||{},terms,status,stock:false});
+      vehicles.push({brand,model,generation,years,name,detail,code,kits,air:air||{},status,stock:false});
     }
   }
 }

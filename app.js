@@ -1,61 +1,48 @@
 const params = new URLSearchParams(location.search);
 if(params.get('auto'))location.replace(base+'/auto/'+encodeURIComponent(params.get('auto'))+(params.get('zestaw')?'?zestaw='+encodeURIComponent(params.get('zestaw')):''));
-byId('other').onclick=() => openRequest(search.value,'Dobór indywidualny');
+const brandSelect = byId('car-brand'), modelSelect = byId('car-model'), yearSelect = byId('car-year');
+const versionsBox = byId('car-versions');
+let desiredKit = 'Kabina';
+byId('other').onclick=() => openRequest([brandSelect.value,modelSelect.value,yearSelect.value].filter(Boolean).join(' '),'Dobór indywidualny');
 byId('partner').onclick=() => openRequest('','Współpraca partnerska');
-const search = byId('car-search');
-const panel = byId('car-panel');
-const options = byId('car-options');
-let desiredKit = 'Kabina', activeIndex = -1, matches = [];
-function searchMatches(text) {
-  const query = normal(text).split(' ').filter(Boolean);
-  return vehicles.filter(v => query.every(q => {
-    if (/^(19|20)\d\d$/.test(q)) {
-      const range = v.years.match(/(?:19|20)\d{2}/g)||[];
-      return range.length && +q>=+range[0] && (range.length===1 || +q<=+range[1]);
-    }
-    return v.terms.some(term=>term.startsWith(q));
-  }));
+const thisYear = new Date().getFullYear();
+function yearRange(v) {
+  const found = v.years.match(/(?:19|20)\d{2}/g)||[];
+  return [+found[0], found.length>1 ? +found[1] : thisYear];
 }
-function closeSearch() {
-  panel.hidden=true;search.setAttribute('aria-expanded','false');
-  search.removeAttribute('aria-activedescendant');activeIndex=-1;
+function fillSelect(select, placeholder, values) {
+  select.replaceChildren(new Option(placeholder,''), ...values.map(value=>new Option(value,value)));
+  select.disabled = !values.length;
 }
-function setActive(index) {
-  activeIndex=index;
-  Array.from(options.children).forEach((li,i)=>li.setAttribute('aria-selected',String(i===index)));
-  if(index>=0) {
-    const active=options.children[index];search.setAttribute('aria-activedescendant',active.id);active.scrollIntoView({block:'nearest',behavior:'instant'});
-  } else search.removeAttribute('aria-activedescendant');
-}
-function showOptions() {
-  matches=searchMatches(search.value);
-  options.replaceChildren();activeIndex=-1;search.removeAttribute('aria-activedescendant');
-  byId('car-meta').textContent=matches.length?'Wybierz generację · '+matches.length+' wyników':'Brak dopasowania. Spróbuj nazwy modelu lub kodu generacji.';
-  matches.forEach((v,i)=>{
-    const li=document.createElement('li');li.id='option-'+v.code;li.setAttribute('role','option');li.setAttribute('aria-selected','false');
-    const left=document.createElement('strong');left.textContent=v.name;
-    const right=document.createElement('small');right.textContent=v.detail;
-    li.append(left,right);li.onclick=()=>selectVehicle(v,desiredKit);options.append(li);
-  });
-  panel.hidden=false;search.setAttribute('aria-expanded','true');
-}
+const modelVersions = () => vehicles.filter(v=>v.brand===brandSelect.value && v.model===modelSelect.value);
+fillSelect(brandSelect,'Marka',[...new Set(vehicles.map(v=>v.brand))].sort((a,b)=>a.localeCompare(b,'pl')));
+brandSelect.onchange=()=>{
+  fillSelect(modelSelect,'Model',[...new Set(vehicles.filter(v=>v.brand===brandSelect.value).map(v=>v.model))].sort((a,b)=>a.localeCompare(b,'pl',{numeric:true})));
+  fillSelect(yearSelect,'Rok',[]);versionsBox.hidden=true;
+  if(brandSelect.value)modelSelect.focus();
+};
+modelSelect.onchange=()=>{
+  const years = new Set();
+  for (const v of modelVersions()) {const [from,to]=yearRange(v);for(let y=to;y>=from;y--)years.add(y);}
+  fillSelect(yearSelect,'Rok',[...years].sort((a,b)=>b-a).map(String));
+  versionsBox.hidden=true;
+  if(modelSelect.value)yearSelect.focus();
+};
+yearSelect.onchange=()=>{
+  const year = +yearSelect.value;
+  const found = modelVersions().filter(v=>{const [from,to]=yearRange(v);return year>=from&&year<=to;});
+  versionsBox.hidden = found.length<2;
+  if (found.length===1) {selectVehicle(found[0],desiredKit);return;}
+  const list = versionsBox.querySelector('div');list.replaceChildren();
+  for (const v of found) {
+    const button=document.createElement('button');button.type='button';button.className='finder-version';
+    button.textContent=v.detail;button.onclick=()=>selectVehicle(v,desiredKit);list.append(button);
+  }
+};
 function focusFinder() {
-  search.focus({preventScroll:true});search.select();showOptions();
+  brandSelect.focus({preventScroll:true});
 }
-search.addEventListener('input',showOptions);search.addEventListener('focus',showOptions);
-search.addEventListener('click',()=>{if(panel.hidden)showOptions();});
-byId('open-options').onclick=()=>{if(panel.hidden)focusFinder();else closeSearch();};
-search.addEventListener('keydown',e=>{
-  if(e.key==='Escape'){closeSearch();return;}
-  if(!['ArrowDown','ArrowUp','Enter'].includes(e.key)) return;
-  e.preventDefault();if(panel.hidden)showOptions();
-  if(!matches.length)return;
-  if(e.key==='Enter') { if(activeIndex>=0 || matches.length===1)selectVehicle(matches[Math.max(0,activeIndex)],desiredKit);else setActive(0); }
-  else setActive(e.key==='ArrowDown'?Math.min(matches.length-1,activeIndex+1):Math.max(0,activeIndex-1));
-});
-document.addEventListener('pointerdown',e=>{if(!e.target.closest('.finder'))closeSearch();});
-byId('dobierz').addEventListener('focusout',e=>{if(!byId('dobierz').contains(e.relatedTarget))closeSearch();});
-document.querySelectorAll('a[href="#dobierz"]').forEach(a=>a.onclick=()=>{desiredKit=a.id==='trunk-link'?'Bagażnik':'Kabina';search.value='';focusFinder();});
+document.querySelectorAll('a[href="#dobierz"]').forEach(a=>a.onclick=()=>{desiredKit=a.id==='trunk-link'?'Bagażnik':'Kabina';focusFinder();});
 function selectVehicle(vehicle,kit) {
   location.href=cardUrl(vehicle,Object.hasOwn(vehicle.kits,kit)?kit:baseKit(vehicle));
 }
@@ -87,4 +74,3 @@ byId('back-to-orders').onclick=()=>setFilter('order');
 byId('more-cars').onclick=()=>{const previous=limit;limit+=6;renderStore();byId('store-grid').children[previous]?.focus({preventScroll:true});};
 document.querySelector('[data-filter="stock"]').hidden=!vehicles.some(v=>v.status==='stock');
 renderStore();
-options.addEventListener('mousedown',e=>e.preventDefault());
