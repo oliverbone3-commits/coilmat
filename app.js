@@ -1,8 +1,10 @@
 const params = new URLSearchParams(location.search);
 if(params.get('auto'))location.replace(base+'/auto/'+encodeURIComponent(params.get('auto'))+(params.get('zestaw')?'?zestaw='+encodeURIComponent(params.get('zestaw')):''));
 const brandSelect = byId('car-brand'), modelSelect = byId('car-model'), yearSelect = byId('car-year');
-const versionsBox = byId('car-versions');
-let desiredKit = 'Kabina';
+const versionsBox = byId('car-versions'), goButton = byId('car-go');
+let desiredKit = 'Kabina', chosen = null;
+function choose(vehicle) {chosen = vehicle;goButton.disabled = !vehicle;}
+goButton.onclick=()=>{if(chosen)selectVehicle(chosen,desiredKit);};
 byId('other').onclick=() => openRequest([brandSelect.value,modelSelect.value,yearSelect.value].filter(Boolean).join(' '),'Dobór indywidualny');
 byId('partner').onclick=() => openRequest('','Współpraca partnerska');
 const thisYear = new Date().getFullYear();
@@ -18,25 +20,31 @@ const modelVersions = () => vehicles.filter(v=>v.brand===brandSelect.value && v.
 fillSelect(brandSelect,'Marka',[...new Set(vehicles.map(v=>v.brand))].sort((a,b)=>a.localeCompare(b,'pl')));
 brandSelect.onchange=()=>{
   fillSelect(modelSelect,'Model',[...new Set(vehicles.filter(v=>v.brand===brandSelect.value).map(v=>v.model))].sort((a,b)=>a.localeCompare(b,'pl',{numeric:true})));
-  fillSelect(yearSelect,'Rok',[]);versionsBox.hidden=true;
+  fillSelect(yearSelect,'Rok',[]);versionsBox.hidden=true;choose(null);
   if(brandSelect.value)modelSelect.focus();
 };
 modelSelect.onchange=()=>{
   const years = new Set();
   for (const v of modelVersions()) {const [from,to]=yearRange(v);for(let y=to;y>=from;y--)years.add(y);}
   fillSelect(yearSelect,'Rok',[...years].sort((a,b)=>b-a).map(String));
-  versionsBox.hidden=true;
+  versionsBox.hidden=true;choose(null);
   if(modelSelect.value)yearSelect.focus();
 };
 yearSelect.onchange=()=>{
   const year = +yearSelect.value;
   const found = modelVersions().filter(v=>{const [from,to]=yearRange(v);return year>=from&&year<=to;});
   versionsBox.hidden = found.length<2;
-  if (found.length===1) {selectVehicle(found[0],desiredKit);return;}
+  choose(found.length===1 ? found[0] : null);
+  if (found.length===1) {goButton.focus();return;}
   const list = versionsBox.querySelector('div');list.replaceChildren();
   for (const v of found) {
     const button=document.createElement('button');button.type='button';button.className='finder-version';
-    button.textContent=v.detail;button.onclick=()=>selectVehicle(v,desiredKit);list.append(button);
+    button.textContent=v.detail;button.setAttribute('aria-pressed','false');
+    button.onclick=()=>{
+      list.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));
+      choose(v);goButton.focus();
+    };
+    list.append(button);
   }
 };
 function focusFinder() {
