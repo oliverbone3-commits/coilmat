@@ -1,0 +1,19 @@
+/* COILMAT design tokens. Source of truth; rules in docs/design-system/DESIGN.md */
+:root{
+  /* Paper: warm surfaces, lightest to deepest */
+  --surface:#fffdf7;--paper:#f6f3eb;--paper-2:#f0ebdf;--paper-3:#ede8dc;--paper-4:#e9e4d8;
+  /* Night: photo-led sections and footer */
+  --night:#181714;--night-2:#221f1a;--on-night:#ece6db;--on-night-muted:#c6bfb4;
+  /* Ink */
+  --ink:#201f1c;--muted:#625e55;--line:#c8c2b5;--line-strong:#a6a094;
+  /* Accent: orange fills, rust for accents on paper */
+  --orange:#ff804c;--orange-hover:#ff9a70;--on-orange:#211810;--rust:#aa4b20;--rust-ink:#824124;--focus:#e6571d;--tint:#f3e4d5;
+  /* Availability */
+  --status-order:#38342b;--status-stock:#2e6b45;--status-out:#7a2e22;
+  /* Type */
+  --font-sans:"Helvetica Neue",Helvetica,Arial,sans-serif;--font-serif:Georgia,"Times New Roman",serif;--font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --text-hero:clamp(62px,6.75vw,115px);--text-display:clamp(48px,5.2vw,90px);--text-product:clamp(37px,4vw,68px);--tracking-display:-.066em;
+  /* Space and shape */
+  --pad:clamp(22px,5.2vw,96px);--section-y:clamp(65px,8vw,146px);--radius-field:3px;--radius-choice:6px;--radius-panel:13px;--radius-pill:30px;
+  --shadow-panel:0 14px 40px #0004;--ease:.16s;
+}
